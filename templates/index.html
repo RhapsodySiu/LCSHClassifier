@@ -30,8 +30,34 @@ table {
 .uk-button {
   background: #fff;
 }
+section.modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    z-index: 101;
+	color: #fff;
+    background-color: #000;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.5s, visibility 0s 0.5s;
+}
+.center {
+    position: absolute;
+    width: 300px;
+    height: 100px;
+    top: 50%;
+    left: 50%;
+    margin-left: -50px; /* margin is -0.5 * dimension */
+    margin-top: -25px; 
+}
 </style>
+
 <div class="uk-container">
+<section id="fullscreen-blocking" class="modal">
+  <div class="center"><h1>Processing...</h1></center>
+</section>
   <h1 class="uk-heading-medium">Vision scene relationship understanding - LCSH classifier test</h1>
 
 	<h2>Upload a photo</h2>
@@ -56,8 +82,12 @@ table {
         <img id="previewImg" width="400px" height="250px" src="./uploads/template.jpg" />
         </th>
         <th>
-        <p style="font-size: 20px;">Subject heading: '<span id="subjectText"></span>'</p>
         <p style="font-size: 20px;">Portrait or landscape: '<span id="portraitText"></span>'</p>
+		<p style="font-size: 20px;">District: '<span id="districtText"></span>'</p>
+		<p style="font-size: 20px;">Keyword: '<span id="keywordText"></span>'</p>
+		<p style="font-size: 20px;">HKLCSH60: '<span id="subject60Text"></span>'</p>
+		<p style="font-size: 20px;">HKLCSH275: '<span id="subject275Text"></span>'</p>
+		<p style="font-size: 20px;">HKLCSH570: '<span id="subject570Text"></span>'</p>
         </th>
         </tr>
     </table>
@@ -69,9 +99,14 @@ table {
 
     var bar = document.getElementById('js-progressbar');
     var img_div = document.getElementById('previewImg');
-    var subject_text = document.getElementById('subjectText');
+	var subject570_text = document.getElementById('subject570Text');
+	var subject275_text = document.getElementById('subject275Text');
+    var subject60_text = document.getElementById('subject60Text');
     var portrait_text = document.getElementById('portraitText');
-
+	var district_text = document.getElementById('districtText');
+	var keyword_text = document.getElementById('keywordText');
+	var blocker = document.getElementById('fullscreen-blocking');
+	
     UIkit.upload('.js-upload', {
 
         url: '',
@@ -80,6 +115,8 @@ table {
 
         beforeSend: function () {
             console.log('beforeSend', arguments);
+			blocker.style.visibility ='visible';
+			blocker.style.opacity = 0.5;
         },
         beforeAll: function () {
             console.log('beforeAll', arguments);
@@ -93,9 +130,15 @@ table {
         complete: function () {
             console.log('complete', arguments);
             var res = JSON.parse(arguments[0].responseText);
-            subject_text.innerHTML = res.label;
+            subject60_text.innerHTML = res.subject60;
+			subject275_text.innerHTML = res.subject275;
+			subject570_text.innerHTML = res.subject570;
             portrait_text.innerHTML = res.isPortrait;
+			keyword_text.innerHTML = res.keyword;
+			district_text.innerHTML = res.district;
             img_div.src = res.imagesource;
+			blocker.style.opacity = 0;
+			blocker.style.visibility = 'hidden';
         },
 
         loadStart: function (e) {

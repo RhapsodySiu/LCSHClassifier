@@ -15,81 +15,63 @@ from werkzeug import secure_filename
 
 # prediction
 import numpy as np
-from tensorflow import Graph, Session
-from keras import backend as K
-# feature extractor
-from model.places365.vgg16_hybrid_places_1365 import VGG16_Hybrid_1365
+
 # subject heading classifier
-from sklearn.svm import LinearSVC
-from sklearn.ensemble import ExtraTreesClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.feature_selection import SelectFromModel
 import pickle
-#import tensorflow as tf
-#from tensorflow.keras.applications.vgg16 import VGG16, preprocess_input
-# MischaPanch
-#from tensorflow.keras.backend import set_session
-#from tensorflow.keras.models import Model, load_model
-#from tensorflow.keras.layers import Dense,GlobalAveragePooling2D
-#from tensorflow.keras.preprocessing.image import load_img, img_to_array
-from keras.models import load_model
-# quick fix on keras cannot load portrait classifier bc of GlorotUniform
-from tensorflow.keras.models import load_model as tf_load_model
+import tensorflow as tf
+from tensorflow.keras.backend import set_session
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
 
-from tensorflow.keras.applications.vgg16 import preprocess_input
-from keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.models import load_model
 
-test_img_path = './uploads/template.jpg'
+# configure tensorflow 
+tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU':1})
+sess = tf.Session(config=tf_config)
+graph = tf.get_default_graph()
+
+test_img_path = './uploads/test.jpg'
 
 IMAGE_DIMENSION = (224,224)
-# MODEL_PATH = './model/keyword_places365_60subject_baseline.h5'
-PORTRAIT_MODEL_PATH = './model/portrait_c_mobilenet_fold0.h5'
-SUBJECT_MODEL_PATH = './model/sklearn_subject_places1365_extraTree_LinearSVC_baseline.sav'
+PORTRAIT_MODEL_PATH = './model/mobilenet_60epo_freeze'
+KEYWORD_MODEL_PATH = './model/vgg16_40epo_50fc_latest'
+DISTRICT_MODEL_PATH = './model/vgg16_60epo_freeze'
+HKLCSH60_MODEL_PATH = './model/HKLCSHext60_std_logisticOvR.pkl'
+HKLCSH275_MODEL_PATH = './model/HKLCSH275_logisticOvR.pkl'
+HKLCSH570_MODEL_PATH = './model/HKLCSH570_logisticOvR.pkl'
+SCALER60_PATH = './model/resnet_HKLCSHext60_scaler.pkl'
+HKLCSH60_LABEL_PATH = './label/HKLCSH60_labels.json'
+HKLCSH275_LABEL_PATH = './label/HKLCSH275_labels.json'
+HKLCSH570_LABEL_PATH = './label/HKLCSH570_labels.json' 
 
-CLASS_FILE = './label/subject60_top.json'
-CLASS_LIST = {}
-with open(CLASS_FILE, 'r') as json_file:
-    CLASS_LIST = json.load(json_file)
-    CLASS_LIST = CLASS_LIST['label']
+# load labels 
+with open(HKLCSH60_LABEL_PATH, 'r') as f:
+    HKLCSH60_LABELS = list(json.load(f).keys())
+with open(HKLCSH275_LABEL_PATH, 'r') as f:
+    HKLCSH275_LABELS = list(json.load(f).keys())
+with open(HKLCSH570_LABEL_PATH, 'r') as f:
+    HKLCSH570_LABELS = list(json.load(f).keys())
+with open(SCALER60_PATH, 'rb') as f:
+    scaler = pickle.load(f)
+    
+# get extractor, stage1 models
+set_session(sess)
+EXTRACTOR = ResNet50(weights='imagenet', include_top=False, pooling='avg', input_shape=(224,224,3))
+PORTRAIT_CLF = load_model(PORTRAIT_MODEL_PATH)
+KEYWORD_CLF = load_model(KEYWORD_MODEL_PATH)
+DISTRICT_CLF = load_model(DISTRICT_MODEL_PATH)
 
-# force tensorflow to use the global default graph
-# by Satyajit
-# global graph
-# global sess
-# sess = tf.Session()
-# graph = tf.get_default_graph()
-# IMPORTANT: models have to be loaded AFTER SETTING THE SESSION for keras!
-# Otherwise, their weights will be unavailable in the threads after the session there has been set
-# set_session(sess)
-# load vgg16 base model
-# this is temporary
-# base_model = VGG16(weights=None, include_top=False)
-# x=base_model.output
-# x=GlobalAveragePooling2D()(x)
-# x=Dense(64,activation='relu')(x) #we add dense layers so that the model can learn more complex functions and classify for better results.
-# preds=Dense(len(CLASS_LIST), activation='softmax')(x) #final layer with softmax activation
-# MODEL=Model(inputs=base_model.input,outputs=preds)
-# MODEL.load_weights(MODEL_PATH)
+# load logistic models 
+with open(HKLCSH60_MODEL_PATH, 'rb') as f:
+    HKLCSH60_MODEL = pickle.load(f)
+with open(HKLCSH275_MODEL_PATH, 'rb') as f:
+    HKLCSH275_MODEL = pickle.load(f)
+with open(HKLCSH570_MODEL_PATH, 'rb') as f:
+    HKLCSH570_MODEL = pickle.load(f)
 
-# MODEL = load_model(MODEL_PATH)
-GRAPH_PORTRAIT = Graph()
-with GRAPH_PORTRAIT.as_default():
-    SESSION_PORTRAIT = Session()
-    with SESSION_PORTRAIT.as_default():
-        PORTRAIT_MODEL = tf_load_model(PORTRAIT_MODEL_PATH)
-#PORTRAIT_MODEL._make_predict_function()
-
-SUBJECT_HEADING_MODEL = None
-with open(SUBJECT_MODEL_PATH, 'rb') as f:
-    SUBJECT_HEADING_MODEL = pickle.load(f)
-
-# get vgg16 hybrid1365 model
-GRAPH_EXTRACTION = Graph()
-with GRAPH_EXTRACTION.as_default():
-    SESSION_EXTRACTION = Session()
-    with SESSION_EXTRACTION.as_default():
-        EXTRACTION_MODEL = VGG16_Hybrid_1365(weights='places', include_top=False, input_shape=(224,224,3))
-#EXTRACTION_MODEL._make_predict_function()
+PORTRAIT_LABELS = ['Landscape', 'Portrait']
+KEYWORD_LABELS = ['Aerial Photos', 'Airportss', 'Ancestral Halls', 'Bank Buildings', 'Beaches', 'Cemeteries', 'Cinemas', 'Commercial Buildings', 'Costumes', 'Festivals', 'Government Buildings/Offices', 'Horse Racing', 'Hotels', 'Housing', 'Markets', 'Museums', 'Night Views', 'Parks', 'Performing Venues', 'Piers', 'Religious Buildings', 'Reservoirs', 'Restaurants', 'Schools', 'Typhoon Shelters']
+DISTRICT_LABELS = ['Central and Western District', 'Eastern District', 'Islands District', 'Kowloon City District', 'Kwai Tsing District', 'Kwun Tong District', 'North District', 'Sai Kung District', 'Sha Tin District', 'Sham Shui Po District', 'Southern District', 'Tai Po District', 'Tsuen Wan District', 'Tuen Mun District', 'Wan Chai District', 'Wong Tai Sin District', 'Yau Tsim Mong District', 'Yuen Long District']
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = set(['jpg', 'jpeg'])
@@ -97,45 +79,79 @@ ALLOWED_EXTENSIONS = set(['jpg', 'jpeg'])
 def get_as_base64(url):
     return base64.b64encode(requests.get(url).content)
 
-def predict(file):
-    subject_heading = 'error'
-    is_portrait = 'Landscape'
-    x = img_to_array(load_img(file, target_size=IMAGE_DIMENSION))
-    x = preprocess_input(x)
+def get_input(img_path):
+    img = load_img(img_path, target_size=(224,224))
+    x = img_to_array(img)
     x = np.expand_dims(x, axis=0)
-    # try:
-    #     #pred = MODEL.predict(x)
-    #     #logging.debug(pred.shape)
-    #     #pred_inc = np.argmax(pred[0])
-    #     subject_heading = predict_subject_heading(x)
-    #     logging.debug(subject_heading)
-    #     is_portrait = predict_portrait(x)
-    #     logging.debug(is_portrait)
-    # except Exception as e:
-    #     logging.debug(str(e))
-    subject_heading = predict_subject_heading(x)
-    # TODO: fix the portrait model loading problem
-    #is_portrait = predict_portrait(x)
-    return subject_heading, is_portrait
+    x = preprocess_input(x)
+    return x 
+    
+def get_feature(x, extractor):
+    global graph
+    with graph.as_default():
+        set_session(sess)
+        feature = extractor.predict(x)
+        return feature
+    
+def predict_stage1(x):
+    global graph 
+    with graph.as_default():
+        set_session(sess)
+        y_pred = PORTRAIT_CLF.predict(x)
+        portrait = "{} {:.2f}%".format(PORTRAIT_LABELS[np.argmax(y_pred[0])], np.max(y_pred[0])*100) 
+        y_pred = DISTRICT_CLF.predict(x)
+        district = "{} {:.2f}%".format(DISTRICT_LABELS[np.argmax(y_pred[0])], np.max(y_pred[0])*100)
+        y_pred = KEYWORD_CLF.predict(x)
+        keyword = "{} {:.2f}%".format(KEYWORD_LABELS[np.argmax(y_pred[0])], np.max(y_pred[0])*100)
+        return (portrait, district, keyword)
 
-def predict_subject_heading(x):
-    K.set_session(SESSION_EXTRACTION)
-    with GRAPH_EXTRACTION.as_default():
-        feature_vector = EXTRACTION_MODEL.predict(x)
-
-    feature_vector = feature_vector.reshape((1, -1))
-    pred = SUBJECT_HEADING_MODEL.predict(feature_vector)
-    return pred[0]
-
-def predict_portrait(x):
-    K.set_session(SESSION_PORTRAIT)
-    with GRAPH_PORTRAIT.as_default():
-        pred = PORTRAIT_MODEL.predict(x)[0]
-    pred_inc = np.argmax(pred)
-    if pred_inc == 0:
-        return 'Landscape'
-    else:
-        return 'Portrait'
+def parse_prediction(y_score, label_list, top_n=3):
+    '''
+    Parse to score to prediction
+    y_score: [n*l] 2d array where n is sample size and l is number of labels
+    label: list of labels. each index corresponds to that label name
+    top_n: result to return for each sample
+    multilabel: boolean. Whether the y_score is multilabel or not.
+    
+    return: [length = sample size] array of dict{'label': [top_n label], 'proba': [top_n probability]}
+    '''
+    result = []
+    label_list = np.asarray(label_list)
+    for y in y_score:
+        indices = y.argsort()[-top_n:][::-1]
+        proba = y[indices]
+        label = label_list[indices]
+        result.append({'label': label, 'proba': proba})
+    return result
+    
+def predict(file):
+    try:
+        x = get_input(file)
+        portrait, district, keyword = predict_stage1(x)
+        feature = get_feature(x, EXTRACTOR)
+        feature = scaler.transform(feature)
+        # HKLCSH60/275/570
+        y_score = HKLCSH60_MODEL.predict_proba(feature)
+        result60 = parse_prediction(y_score, HKLCSH60_LABELS)
+        y_score = HKLCSH275_MODEL.predict_proba(feature)
+        result275 = parse_prediction(y_score, HKLCSH275_LABELS)
+        y_score = HKLCSH570_MODEL.predict_proba(feature)
+        result570 = parse_prediction(y_score, HKLCSH570_LABELS)
+        result60_str = ""
+        for label, prob in zip(result60[0]['label'], result60[0]['proba']):
+            result60_str += "| {} {:.2f}% ".format(label, prob*100)
+        result275_str = ""
+        for label, prob in zip(result275[0]['label'], result275[0]['proba']):
+            result275_str += "| {} {:.2f}% ".format(label, prob*100)
+        result570_str = ""
+        for label, prob in zip(result570[0]['label'], result570[0]['proba']):
+            result570_str += "| {} {:.2f}% ".format(label, prob*100)
+        result = {'subject60': result60_str, 'subject275': result275_str, 'subject570': result570_str, 'is_portrait': portrait, 'keyword': keyword, 'district': district}
+        return result
+    except Exception as e:
+        error_msg = "Error in backend"
+        result = {'subject60': error_msg, 'subject275': error_msg, 'subject570': error_msg, 'is_portrait': error_msg, 'keyword': error_msg, 'district': error_msg}
+        return result 
 
 # from ferrygun/AIFlowers2
 def my_random_string(string_length=10):
@@ -169,7 +185,9 @@ def upload_file():
 
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
-            label, is_portrait = predict(file_path)
+            
+            # get portrait prediction 
+            result = predict(file_path)
             logging.debug(file_path)
             filename = my_random_string(6) + filename
 
@@ -177,8 +195,12 @@ def upload_file():
             logging.debug("--- %s seconds ---" % str (time.time() - start_time))
             #return render_template('template.html', label=label, isPortrait=is_portrait, imagesource='./uploads/' + filename)
             return jsonify(
-                label=label,
-                isPortrait=is_portrait,
+                subject60=result['subject60'],
+                subject275=result['subject275'],
+                subject570=result['subject570'],
+                isPortrait=result['is_portrait'],
+                district=result['district'],
+                keyword=result['keyword'],
                 imagesource='./uploads/' + filename
             )
 
