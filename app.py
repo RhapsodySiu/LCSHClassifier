@@ -33,13 +33,13 @@ graph = tf.get_default_graph()
 test_img_path = './uploads/test.jpg'
 
 IMAGE_DIMENSION = (224,224)
-PORTRAIT_MODEL_PATH = './model/mobilenet_60epo_freeze'
-KEYWORD_MODEL_PATH = './model/vgg16_40epo_50fc_latest'
-DISTRICT_MODEL_PATH = './model/vgg16_60epo_freeze'
+PORTRAIT_MODEL_PATH = './model/portrait_mobilenet'
+KEYWORD_MODEL_PATH = './model/keyword_vgg16'
+DISTRICT_MODEL_PATH = './model/district_vgg16'
 HKLCSH60_MODEL_PATH = './model/HKLCSHext60_std_logisticOvR.pkl'
 HKLCSH275_MODEL_PATH = './model/HKLCSH275_logisticOvR.pkl'
 HKLCSH570_MODEL_PATH = './model/HKLCSH570_logisticOvR.pkl'
-SCALER60_PATH = './model/resnet_HKLCSHext60_scaler.pkl'
+SCALER60_PATH = './model/resnet_scaler.pkl'
 HKLCSH60_LABEL_PATH = './label/HKLCSH60_labels.json'
 HKLCSH275_LABEL_PATH = './label/HKLCSH275_labels.json'
 HKLCSH570_LABEL_PATH = './label/HKLCSH570_labels.json' 
